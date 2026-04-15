@@ -28,7 +28,6 @@ Route::put('/reset-password', [WjcController::class, 'resetPassword']);
 Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [WjcController::class, 'logout']);
     Route::get('/user', [WjcController::class, 'userInfo']);
-    Route::put('/user/password', [WjcController::class, 'updatePassword']);
     Route::put('/user/profile', [WjcController::class, 'updateProfile']);
     Route::delete('/user', [WjcController::class, 'deleteUser']);
 });

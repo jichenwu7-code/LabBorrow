@@ -105,34 +105,6 @@ class WjcController extends Controller
         ]);
     }
 
-    //修改个人密码
-    public function updatePassword(Request $request)
-    {
-        $request->validate([
-            'old_password' => 'required',
-            'password' => 'required|confirmed|min:6|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
-        ]);
-
-        $user = JWTAuth::user();
-
-        if(!Hash::check($request->old_password,$user->password)){
-            return response()->json([
-                'code' => 400,
-                'message' => '原密码错误',
-                'data' => null,
-            ],400);
-        }
-
-        $user->update([
-            'password' => Hash::make($request->password)
-        ]);
-
-        return response()->json([
-            'code' => 200,
-            'message' => '修改成功',
-            'data' => null,
-        ]);
-    }
 
     //修改个人资料
     public function updateProfile(Request $request)
