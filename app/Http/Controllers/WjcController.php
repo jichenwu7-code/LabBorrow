@@ -227,6 +227,60 @@ class WjcController extends Controller
         ]);
     }
 
+    //用户重置密码
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'password' => 'required|confirmed|min:6|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
+        ]);
+
+        // 获取验证token
+        $verifyToken = $request->header('Verify-Token');
+        if (!$verifyToken) {
+            return response()->json([
+                'code' => 400,
+                'message' => '验证码未验证或 Verify-Token 无效',
+                'data' => null
+            ], 400);
+        }
+
+        // 验证token是否有效
+        $cacheKey = 'verify_token_' . $verifyToken;
+        $email = Cache::get($cacheKey);
+
+        if (!$email) {
+            return response()->json([
+                'code' => 400,
+                'message' => '验证码未验证或 Verify-Token 无效',
+                'data' => null
+            ], 400);
+        }
+
+        // 查找用户
+        $user = User::where('email', $email)->first();
+        if (!$user) {
+            return response()->json([
+                'code' => 400,
+                'message' => '邮箱未注册',
+                'data' => null
+            ], 400);
+        }
+
+        // 更新密码
+        $user->update([
+            'password' => Hash::make($validated['password'])
+        ]);
+
+        // 删除验证token
+        Cache::forget($cacheKey);
+
+        return response()->json([
+            'code' => 200,
+            'message' => '密码重置成功，请使用新密码登录',
+            'data' => null
+        ]);
+    }
+
     //注销账号
     public function deleteUser(Request $request)
     {
