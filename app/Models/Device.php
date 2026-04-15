@@ -9,7 +9,19 @@ class Device extends Model
 {
     use HasFactory;
 
-    protected 
+    protected $fillable = [
+        'category_id',
+        'name',
+        'model',
+        'description',
+        'total_quantity',
+        'status',
+    ];
+
+    public function category()
+    {
+        return $this->belongTo(DeviceCategory::class,'category_id');
+    }
 }
 
 ?>

@@ -28,3 +28,13 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/user/password', [WjcController::class, 'updatePassword']);
     Route::put('/user/profile', [WjcController::class, 'updateProfile']);
 });
+
+// 管理员接口
+Route::middleware('auth:api')->group(function () {
+    Route::get('/admin/bookings', [WjcController::class, 'bookingList']);
+    Route::post('/admin/bookings/{id}/audit', [WjcController::class, 'auditBooking']);
+
+    Route::post('/admin/devices', [WjcController::class, 'storeDevice']);
+    Route::put('/admin/devices/{id}', [WjcController::class, 'updateDevice']);
+    Route::post('/admin/devices/{id}/status', [WjcController::class, 'updateDeviceStatus']);
+});
