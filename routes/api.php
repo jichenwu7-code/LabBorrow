@@ -20,6 +20,9 @@ Route::get('/login', function () {
 // 公共路由
 Route::post('/register', [WjcController::class, 'register']);
 Route::post('/login', [WjcController::class, 'login']);
+Route::post('/send-code', [WjcController::class, 'sendCode']);
+Route::post('/verify-code', [WjcController::class, 'verifyCode']);
+Route::put('/reset-password', [WjcController::class, 'resetPassword']);
 
 // 需要登录的路由
 Route::middleware('auth:api')->group(function () {
@@ -27,6 +30,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/user', [WjcController::class, 'userInfo']);
     Route::put('/user/password', [WjcController::class, 'updatePassword']);
     Route::put('/user/profile', [WjcController::class, 'updateProfile']);
+    Route::delete('/user', [WjcController::class, 'deleteUser']);
 });
 
 // 管理员接口
