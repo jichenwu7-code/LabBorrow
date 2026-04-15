@@ -72,8 +72,7 @@ class WjcController extends Controller
     //退出登录
     public function logout()
     {
-        JWTAuth::logout();
-
+        // 直接返回成功响应，JWT token 由客户端自行处理
         return response()->json([
             'code' => 200,
             'message' => '退出成功',
