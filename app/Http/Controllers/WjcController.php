@@ -194,7 +194,6 @@ class WjcController extends Controller
 
         $booking->update([
             'status' => $validated['result'],
-            'admin_id' => auth()->id(),
             'reject_reason' => $validated['reject_reason'] ?? null,
         ]);
 
