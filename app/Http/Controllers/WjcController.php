@@ -164,20 +164,23 @@ class WjcController extends Controller
             \Illuminate\Support\Facades\Mail::send('emails.verify', ['code' => $code], function ($message) use ($email) {
                 $message->to($email)
                         ->subject('验证码');
-            });
+            }); 
 
-            return response()->json([
-                'code' => 200,
-                'message' => '验证码发送成功',
-                'data' => null
-            ]);
+        return response()->json([
+            'code' => 200,
+            'message' => '验证码发送成功',
+            'data' => null
+        ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'code' => 500,
-                'message' => '验证码发送失败: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
-        }   
+        // 记录错误日志
+        \Illuminate\Support\Facades\Log::error('邮件发送失败: ' . $e->getMessage());
+    
+        return response()->json([
+            'code' => 500,
+            'message' => '验证码发送失败，请稍后重试',
+            'data' => null
+        ], 500);
+    }
     }
 
     //校验验证码
