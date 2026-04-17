@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WjcController;
+use App\Http\Controllers\GyzController;
 
 // 测试路由
 Route::get('/test-api', function () {
@@ -41,3 +42,8 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/admin/devices/{id}', [WjcController::class, 'updateDevice']);
     Route::post('/admin/devices/{id}/status', [WjcController::class, 'updateDeviceStatus']);
 });
+
+// 设备接口
+Route::get('/devices', [GyzController::class, 'index']);
+Route::get('/categories', [GyzController::class, 'categories']);
+Route::get('/devices/{id}', [GyzController::class, 'show']);
