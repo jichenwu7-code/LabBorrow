@@ -46,4 +46,10 @@ Route::middleware('auth:api')->group(function () {
 // 设备接口
 Route::get('/devices', [GyzController::class, 'index']);
 Route::get('/categories', [GyzController::class, 'categories']);
+Route::get('/devices/available', [GyzController::class, 'available']);
+Route::get('/devices/filter', [GyzController::class, 'filterByStatus']);
+Route::get('/devices/status-options', [GyzController::class, 'statusOptions']);
+Route::get('/devices/hot', [GyzController::class, 'hotDevices']);
+Route::get('/categories/{id}/devices', [GyzController::class, 'devicesByCategory']);
 Route::get('/devices/{id}', [GyzController::class, 'show']);
+Route::get('/devices/{id}/check-available', [GyzController::class, 'checkAvailable']);
