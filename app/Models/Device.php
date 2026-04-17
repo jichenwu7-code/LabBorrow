@@ -15,6 +15,8 @@ class Device extends Model
         'model',
         'description',
         'total_quantity',
+        'available_quantity',
+        'borrow_count',
         'status',
     ];
 
