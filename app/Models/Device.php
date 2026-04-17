@@ -20,8 +20,8 @@ class Device extends Model
 
     public function category()
     {
-        return $this->belongTo(DeviceCategory::class,'category_id');
+        return $this->belongsTo(DeviceCategory::class,'category_id');
     }
 }
 
-?>
+
