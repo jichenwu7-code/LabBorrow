@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'aliyun' => [
+        'access_key_id' => env('ALIYUN_ACCESS_KEY_ID'),
+        'access_key_secret' => env('ALIYUN_ACCESS_KEY_SECRET'),
+        'sms_sign' => env('ALIYUN_SMS_SIGN'),
+        'sms_template_code' => env('ALIYUN_SMS_TEMPLATE_CODE'),
+    ], 
 ];

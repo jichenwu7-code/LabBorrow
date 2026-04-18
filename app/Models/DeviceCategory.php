@@ -9,8 +9,12 @@ class DeviceCategory extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = [
+        'name',
+        'description',
+    ];
 
+    // 关联设备（你的分支必须保留）
     public function devices()
     {
         return $this->hasMany(Device::class, 'category_id');

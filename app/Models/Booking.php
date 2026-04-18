@@ -42,8 +42,21 @@ class Booking extends Model
         return $this->belongsTo(User::class, 'admin_id');
     }
 
+    // 状态常量
     const STATUS_PENDING = 'pending';
     const STATUS_APPROVED = 'approved';
     const STATUS_REJECTED = 'rejected';
     const STATUS_RETURNED = 'returned';
+
+    // 状态文字（来自 main 分支）
+    public function getStatusTextAttribute()
+    {
+        return match ($this->status) {
+            'pending' => '待审核',
+            'approved' => '已通过',
+            'rejected' => '已拒绝',
+            'returned' => '已归还',
+            default => '未知'
+        };
+    }
 }

@@ -15,6 +15,8 @@ class Device extends Model
         'model',
         'description',
         'total_quantity',
+        'available_quantity',   // 来自 main 分支
+        'borrow_count',         // 来自 main 分支
         'status',
     ];
 
@@ -24,7 +26,7 @@ class Device extends Model
         return $this->belongsTo(DeviceCategory::class, 'category_id');
     }
 
-    // 关联借用记录
+    // 关联借用记录（你的分支必须保留）
     public function bookings()
     {
         return $this->hasMany(Booking::class, 'device_id');
