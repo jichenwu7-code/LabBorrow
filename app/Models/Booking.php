@@ -29,12 +29,12 @@ class Booking extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class,'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function device()
     {
-        return $this->belongsTo(Device::class,'device_id');
+        return $this->belongsTo(Device::class, 'device_id');
     }
 
     public function admin()
@@ -42,7 +42,13 @@ class Booking extends Model
         return $this->belongsTo(User::class, 'admin_id');
     }
 
-    // 状态文字
+    // 状态常量
+    const STATUS_PENDING = 'pending';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_REJECTED = 'rejected';
+    const STATUS_RETURNED = 'returned';
+
+    // 状态文字（来自 main 分支）
     public function getStatusTextAttribute()
     {
         return match ($this->status) {
@@ -54,5 +60,3 @@ class Booking extends Model
         };
     }
 }
- 
-?>
