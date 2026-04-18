@@ -4,7 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 
-class ApiSessionFix
+class DisableSessionGlobally
 {
     /**
      * Handle an incoming request.
@@ -15,8 +15,11 @@ class ApiSessionFix
      */
     public function handle($request, Closure $next)
     {
-        // 完全禁用会话中间件，避免SQLite连接问题
-        $request->session()->flush();
+        config(['session.driver' => 'array']);
+        
+        if ($request->session()) {
+            $request->session()->flush();
+        }
         
         return $next($request);
     }

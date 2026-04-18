@@ -15,6 +15,12 @@ use Illuminate\Support\Str;
 
 class WjcController extends Controller
 {
+    public function __construct()
+    {
+        // 完全禁用session，避免SQLite连接问题
+        config(['session.driver' => 'array']);
+    }
+
     //用户注册
     public function register(Request $request)
     {
@@ -50,36 +56,78 @@ class WjcController extends Controller
     //用户登录
     public function login(Request $request)
     {
-        $validated = $request->validate([
-            'account' => 'required',
-            'password' => 'required',
-        ]);
+        try {
+            // 记录开始登录
+            \Illuminate\Support\Facades\Log::info('开始登录');
+            
+            // 完全禁用session，避免SQLite连接问题
+            config(['session.driver' => 'array']);
+            
+            // 记录session驱动设置
+            \Illuminate\Support\Facades\Log::info('Session驱动设置为: ' . config('session.driver'));
+            
+            $validated = $request->validate([
+                'account' => 'required',
+                'password' => 'required',
+            ]);
 
-        $credentials = $request->only('account', 'password');
-        $token = JWTAuth::attempt($credentials);
-        if(!$token){
+            // 手动验证用户
+            $user = User::where('account', $validated['account'])->first();
+            
+            // 记录尝试登录的账号
+            \Illuminate\Support\Facades\Log::info('尝试登录的账号: ' . $validated['account']);
+            \Illuminate\Support\Facades\Log::info('用户是否存在: ' . ($user ? '是' : '否'));
+            
+            if (!$user) {
+                return response()->json([
+                    'code' => 401,
+                    'message' => '账号或密码错误',
+                    'data' => null
+                ], 401);
+            }
+            
+            // 直接使用PHP内置的password_verify函数，绕过Laravel的Hash::check
+            if (!password_verify($validated['password'], $user->password)) {
+                \Illuminate\Support\Facades\Log::info('密码验证失败');
+                return response()->json([
+                    'code' => 401,
+                    'message' => '账号或密码错误',
+                    'data' => null
+                ], 401);
+            }
+            
+            // 使用JWTAuth::fromUser()生成真实的token
+            $token = JWTAuth::fromUser($user);
+            
+            // 记录登录结果
+            \Illuminate\Support\Facades\Log::info('登录结果: 成功');
+            \Illuminate\Support\Facades\Log::info('生成的token: ' . $token);
+            
             return response()->json([
-                'code' => 401,
-                'message' => '账号或密码错误',
-                'data' => null
-            ],401);
-        }
-
-        $user = JWTAuth::user();
-
-        return response()->json([
-            'code' => 200,
-            'message' => '登录成功',
-            'data'=> [
-                'token' => $token,
-                'user' => [
-                    'id' =>$user->id,
-                    'account' => $user->account,
-                    'name' => $user->name,
-                    'role' =>$user->role,
+                'code' => 200,
+                'message' => '登录成功',
+                'data'=> [
+                    'token' => $token,
+                    'user' => [
+                        'id' =>$user->id,
+                        'account' => $user->account,
+                        'name' => $user->name,
+                        'role' =>$user->role,
+                    ]
                 ]
-            ]
-        ]);
+            ]);
+        } catch (\Exception $e) {
+            // 记录错误日志
+            \Illuminate\Support\Facades\Log::error('登录失败: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('错误堆栈: ' . $e->getTraceAsString());
+            
+            // 返回错误响应
+            return response()->json([
+                'code' => 500,
+                'message' => '登录失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
     //退出登录
@@ -96,32 +144,48 @@ class WjcController extends Controller
     //获取当前用户信息
     public function userInfo()
     {
-        $user = JWTAuth::user();
+        try {
+            $user = JWTAuth::user();
 
-        return response()->json([
-            'code' => 200,
-            'message' => '获取成功',
-            'data' => $user,
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $user,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
 
     //修改个人资料
     public function updateProfile(Request $request)
     {
-        $user = JWTAuth::user();
+        try {
+            $user = JWTAuth::user();
 
-        $user->update($request->only([
-            'name',
-            'phone',
-            'email',
-        ]));
+            $user->update($request->only([
+                'name',
+                'phone',
+                'email',
+            ]));
 
-        return response()->json([
-            'code' => 200,
-            'message' => '更新成功',
-            'data' => null,
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '更新成功',
+                'data' => null,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '更新失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
     //发送验证码
@@ -250,75 +314,104 @@ class WjcController extends Controller
     //用户重置密码
     public function resetPassword(Request $request)
     {
-        $validated = $request->validate([
-            'password' => 'required|confirmed|min:6|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
-        ]);
+        try {
+            // 使用validateWithBag来捕获验证错误
+            $validated = $request->validateWithBag('resetPassword', [
+                'password' => 'required|confirmed|min:6|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
+            ]);
 
-        // 获取验证token
-        $verifyToken = $request->header('Verify-Token');
-        if (!$verifyToken) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码未验证或 Verify-Token 无效',
-                'data' => null
-            ], 400);
-        }
+            // 获取验证token
+            $verifyToken = $request->header('Verify-Token');
+            if (!$verifyToken) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码未验证或 Verify-Token 无效',
+                    'data' => null
+                ], 400);
+            }
 
-        // 验证token是否有效
-        $tokenFile = storage_path('app/verify_tokens/' . $verifyToken . '.txt');
-        if (!\Illuminate\Support\Facades\File::exists($tokenFile)) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码未验证或 Verify-Token 无效',
-                'data' => null
-            ], 400);
-        }
+            // 验证token是否有效
+            $tokenFile = storage_path('app/verify_tokens/' . $verifyToken . '.txt');
+            if (!\Illuminate\Support\Facades\File::exists($tokenFile)) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码未验证或 Verify-Token 无效',
+                    'data' => null
+                ], 400);
+            }
 
-        // 解析token数据
-        $tokenData = json_decode(\Illuminate\Support\Facades\File::get($tokenFile), true);
-        if (!$tokenData || !isset($tokenData['email']) || !isset($tokenData['expire'])) {
+            // 解析token数据
+            $tokenData = json_decode(\Illuminate\Support\Facades\File::get($tokenFile), true);
+            if (!$tokenData || !isset($tokenData['email']) || !isset($tokenData['expire'])) {
+                \Illuminate\Support\Facades\File::delete($tokenFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码未验证或 Verify-Token 无效',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查token是否过期
+            if ($tokenData['expire'] < time()) {
+                \Illuminate\Support\Facades\File::delete($tokenFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码未验证或 Verify-Token 无效',
+                    'data' => null
+                ], 400);
+            }
+
+            // 获取邮箱
+            $email = $tokenData['email'];
+
+            // 查找用户
+            $user = User::where('email', $email)->first();
+            if (!$user) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '邮箱未注册',
+                    'data' => null
+                ], 400);
+            }
+
+            // 更新密码
+            $user->update([
+                'password' => Hash::make($validated['password'])
+            ]);
+
+            // 删除验证token
             \Illuminate\Support\Facades\File::delete($tokenFile);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '密码重置成功，请使用新密码登录',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 处理验证错误，返回JSON
             return response()->json([
                 'code' => 400,
-                'message' => '验证码未验证或 Verify-Token 无效',
+                'message' => '验证失败: ' . $e->errors()['password'][0],
                 'data' => null
             ], 400);
-        }
-
-        // 检查token是否过期
-        if ($tokenData['expire'] < time()) {
-            \Illuminate\Support\Facades\File::delete($tokenFile);
+        } catch (\Exception $e) {
+            // 记录错误日志
+            \Illuminate\Support\Facades\Log::error('重置密码失败: ' . $e->getMessage());
+            
             return response()->json([
-                'code' => 400,
-                'message' => '验证码未验证或 Verify-Token 无效',
+                'code' => 500,
+                'message' => '重置密码失败: ' . $e->getMessage(),
                 'data' => null
-            ], 400);
+            ], 500);
         }
+    }
 
-        // 获取邮箱
-        $email = $tokenData['email'];
-
-        // 查找用户
-        $user = User::where('email', $email)->first();
-        if (!$user) {
-            return response()->json([
-                'code' => 400,
-                'message' => '邮箱未注册',
-                'data' => null
-            ], 400);
-        }
-
-        // 更新密码
-        $user->update([
-            'password' => Hash::make($validated['password'])
-        ]);
-
-        // 删除验证token
-        \Illuminate\Support\Facades\File::delete($tokenFile);
-
+    // 测试重置密码路由
+    public function testResetPassword(Request $request)
+    {
         return response()->json([
             'code' => 200,
-            'message' => '密码重置成功，请使用新密码登录',
+            'message' => '测试重置密码路由成功',
             'data' => null
         ]);
     }
@@ -326,149 +419,201 @@ class WjcController extends Controller
     //注销账号
     public function deleteUser(Request $request)
     {
-        $validated = $request->validate([
-            'email' => 'required|email',
-            'code' => 'required|digits:6',
-        ]);
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email',
+                'code' => 'required|digits:6',
+            ]);
 
-        $user = JWTAuth::user();
+            $user = JWTAuth::user();
 
-        // 验证邮箱是否匹配
-        if ($user->email != $validated['email']) {
-            return response()->json([
-                'code' => 400,
-                'message' => '邮箱不匹配',
-                'data' => null
-            ], 400);
-        }
+            // 验证邮箱是否匹配
+            if ($user->email != $validated['email']) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '邮箱不匹配',
+                    'data' => null
+                ], 400);
+            }
 
-        $emailKey = strtolower($validated['email']);
+            $emailKey = strtolower($validated['email']);
 
-        // 读取验证码文件
-        $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
-        if (!\Illuminate\Support\Facades\File::exists($codeFile)) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码已过期',
-                'data' => null
-            ], 400);
-        }
+            // 读取验证码文件
+            $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
+            if (!\Illuminate\Support\Facades\File::exists($codeFile)) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
 
-        // 解析验证码数据
-        $codeData = json_decode(\Illuminate\Support\Facades\File::get($codeFile), true);
-        if (!$codeData || !isset($codeData['code']) || !isset($codeData['expire'])) {
+            // 解析验证码数据
+            $codeData = json_decode(\Illuminate\Support\Facades\File::get($codeFile), true);
+            if (!$codeData || !isset($codeData['code']) || !isset($codeData['expire'])) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查验证码是否过期
+            if ($codeData['expire'] < time()) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查验证码是否正确
+            if ($codeData['code'] != $validated['code']) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码错误',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查是否有未归还的设备
+            $unreturnedBookings = Booking::where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->whereNull('returned_at')
+                ->exists();
+
+            if ($unreturnedBookings) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '有未归还设备，禁止注销',
+                    'data' => null
+                ], 400);
+            }
+
+            // 注销账号
+            $user->update(['status' => 0]);
+
+            // 删除已使用的验证码
             \Illuminate\Support\Facades\File::delete($codeFile);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '账号注销成功',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 获取第一个错误消息
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            
             return response()->json([
                 'code' => 400,
-                'message' => '验证码已过期',
+                'message' => '验证失败: ' . $errorMessage,
                 'data' => null
             ], 400);
-        }
-
-        // 检查验证码是否过期
-        if ($codeData['expire'] < time()) {
-            \Illuminate\Support\Facades\File::delete($codeFile);
+        } catch (\Exception $e) {
             return response()->json([
-                'code' => 400,
-                'message' => '验证码已过期',
+                'code' => 500,
+                'message' => '注销失败: ' . $e->getMessage(),
                 'data' => null
-            ], 400);
+            ], 500);
         }
-
-        // 检查验证码是否正确
-        if ($codeData['code'] != $validated['code']) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码错误',
-                'data' => null
-            ], 400);
-        }
-
-        // 检查是否有未归还的设备
-        $unreturnedBookings = Booking::where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->whereNull('returned_at')
-            ->exists();
-
-        if ($unreturnedBookings) {
-            return response()->json([
-                'code' => 400,
-                'message' => '有未归还设备，禁止注销',
-                'data' => null
-            ], 400);
-        }
-
-        // 注销账号
-        $user->update(['status' => 0]);
-
-        // 删除已使用的验证码
-        \Illuminate\Support\Facades\File::delete($codeFile);
-
-        return response()->json([
-            'code' => 200,
-            'message' => '账号注销成功',
-            'data' => null
-        ]);
     }
 
     //借用记录审核
     public function bookingList(Request $request)
     {
-        $bookings = Booking::with(['user', 'device'])
-            ->orderBy('id', 'desc')
-            ->paginate($request->per_page ?? 10);
+        try {
+            $bookings = Booking::with(['user', 'device'])
+                ->orderBy('id', 'desc')
+                ->paginate($request->per_page ?? 10);
 
-        $items = $bookings->map(function ($item) {
-            return [
-                'id' => $item->id,
-                'user_name' => $item->user->name ?? '',
-                'user_account' => $item->user->account ?? '',
-                'device_name' => $item->device->name ?? '',
-                'model' => $item->device->model ?? '',
-                'start_date' => $item->start_date,
-                'end_date' => $item->end_date,
-                'purpose' => $item->purpose,
-                'status' => $item->status,
-                'status_text' => $item->status_text,
-                'created_at' => $item->created_at->toDateTimeString(),
-                'returned_at' => $item->returned_at,
-                'admin_id' => $item->admin_id,
-                'reject_reason' => $item->reject_reason,
-            ];
-        });
+            $items = $bookings->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'user_name' => $item->user->name ?? '',
+                    'user_account' => $item->user->account ?? '',
+                    'device_name' => $item->device->name ?? '',
+                    'model' => $item->device->model ?? '',
+                    'start_date' => $item->start_date,
+                    'end_date' => $item->end_date,
+                    'purpose' => $item->purpose,
+                    'status' => $item->status,
+                    'status_text' => $item->status_text,
+                    'created_at' => $item->created_at->toDateTimeString(),
+                    'returned_at' => $item->returned_at,
+                    'admin_id' => $item->admin_id,
+                    'reject_reason' => $item->reject_reason,
+                ];
+            });
 
-        return response()->json([
-            'code' => 200,
-            'message' => '获取成功',
-            'data' => [
-                'total' => $bookings->total(),
-                'current_page' => $bookings->currentPage(),
-                'per_page' => $bookings->perPage(),
-                'items' => $items
-            ]
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => [
+                    'total' => $bookings->total(),
+                    'current_page' => $bookings->currentPage(),
+                    'per_page' => $bookings->perPage(),
+                    'items' => $items
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
     //审核借用申请
     public function auditBooking(Request $request, $id)
     {
-        $validated = $request->validate([
-            'result' => 'required|in:approved,rejected',
-            'reject_reason' => 'nullable|string',
-        ]);
+        try {
+            $validated = $request->validate([
+                'result' => 'required|in:approved,rejected',
+                'reject_reason' => 'nullable|string',
+            ]);
 
-        $booking = Booking::findOrFail($id);
+            $booking = Booking::findOrFail($id);
 
-        $booking->update([
-            'status' => $validated['result'],
-            'reject_reason' => $validated['reject_reason'] ?? null,
-        ]);
+            $booking->update([
+                'status' => $validated['result'],
+                'reject_reason' => $validated['reject_reason'] ?? null,
+            ]);
 
-        return response()->json([
-            'code' => 200,
-            'message' => '审核成功',
-            'data' => null
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '审核成功',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 获取第一个错误消息
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'code' => 404,
+                'message' => '预约记录不存在',
+                'data' => null
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '审核失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
     //设备管理
@@ -476,59 +621,481 @@ class WjcController extends Controller
     //新增设备
     public function storeDevice(Request $request)
     {
-        $validated = $request->validate([
-            'category_id' => 'required|exists:device_categories,id',
-            'name' => 'required|string',
-            'model' => 'nullable|string',
-            'description' => 'nullable|string',
-            'total_quantity' => 'required|integer|min:0',
-            'status' => 'required|in:0,1',
-        ]);
+        try {
+            $validated = $request->validate([
+                'category_id' => 'required|exists:device_categories,id',
+                'name' => 'required|string',
+                'model' => 'nullable|string',
+                'description' => 'nullable|string',
+                'total_quantity' => 'required|integer|min:0',
+                'status' => 'required|in:0,1',
+            ]);
 
-        Device::create($validated);
+            Device::create($validated);
 
-        return response()->json([
-            'code' => 200,
-            'message' => '设备新增成功',
-            'data' => null
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '设备新增成功',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 获取第一个错误消息
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '新增失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
     //编辑设备
     public function updateDevice(Request $request, $id)
     {
-        $validated = $request->validate([
-            'category_id' => 'required|exists:device_categories,id',
-            'name' => 'required|string',
-            'model' => 'nullable|string',
-            'description' => 'nullable|string',
-            'total_quantity' => 'required|integer|min:0',
-            'status' => 'required|in:0,1',
-        ]);
+        try {
+            $validated = $request->validate([
+                'category_id' => 'required|exists:device_categories,id',
+                'name' => 'required|string',
+                'model' => 'nullable|string',
+                'description' => 'nullable|string',
+                'total_quantity' => 'required|integer|min:0',
+                'status' => 'required|in:0,1',
+            ]);
 
-        $device = Device::findOrFail($id);
-        $device->update($validated);
+            $device = Device::findOrFail($id);
+            $device->update($validated);
 
-        return response()->json([
-            'code' => 200,
-            'message' => '设备编辑成功',
-            'data' => null
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '设备编辑成功',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 获取第一个错误消息
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'code' => 404,
+                'message' => '设备不存在',
+                'data' => null
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '编辑失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
     //更新设备状态（上架/下架）
     public function updateDeviceStatus(Request $request, $id)
     {
-        $validated = $request->validate([
-            'status' => 'required|in:0,1',
-        ]);
+        try {
+            $validated = $request->validate([
+                'status' => 'required|in:0,1',
+            ]);
 
-        $device = Device::findOrFail($id);
-        $device->update($validated);
+            $device = Device::findOrFail($id);
+            $device->update($validated);
 
-        return response()->json([
-            'code' => 200,
-            'message' => '设备状态更新成功',
-            'data' => null
-        ]);
+            return response()->json([
+                'code' => 200,
+                'message' => '设备状态更新成功',
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // 获取第一个错误消息
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'code' => 404,
+                'message' => '设备不存在',
+                'data' => null
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '更新失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 1. 设备列表
+    public function index(Request $request)
+    {
+        try {
+            $page = $request->input('page', 1);
+            $limit = $request->input('limit', 10);
+            $keyword = $request->input('keyword', '');
+            $category_id = $request->input('category_id');
+
+            $query = Device::with('category')
+                ->when($keyword, function ($q) use ($keyword) {
+                    $q->where('name', 'like', "%{$keyword}%")
+                        ->orWhere('model', 'like', "%{$keyword}%");
+                })
+                ->when($category_id, function ($q) use ($category_id) {
+                    $q->where('category_id', $category_id);
+                });
+
+            $total = $query->count();
+            $devices = $query->paginate($limit, ['*'], 'page', $page);
+
+            $items = $devices->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'model' => $item->model,
+                    'category_id' => $item->category_id,
+                    'category_name' => $item->category?->name,
+                    'description' => $item->description,
+                    'total_quantity' => $item->total_quantity,
+                    'status' => $item->status,
+                    'status_text' => $item->status == 1 ? '可借' : '不可借',
+                ];
+            });
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => [
+                    'total' => $total,
+                    'current_page' => $devices->currentPage(),
+                    'per_page' => $devices->perPage(),
+                    'items' => $items
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 2. 设备分类列表
+    public function categories()
+    {
+        try {
+            $list = DeviceCategory::get(['id', 'name', 'description']);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $list
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 3. 单台设备详情
+    public function show($id)
+    {
+        try {
+            $device = Device::with('category')->find($id);
+
+            if (!$device) {
+                return response()->json([
+                    'code' => 404,
+                    'message' => '设备不存在',
+                    'data' => null
+                ]);
+            }
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => [
+                    'id' => $device->id,
+                    'name' => $device->name,
+                    'model' => $device->model,
+                    'category_id' => $device->category_id,
+                    'category_name' => $device->category?->name,
+                    'description' => $device->description,
+                    'total_quantity' => $device->total_quantity,
+                    'status' => $device->status,
+                    'status_text' => $device->status == 1 ? '可借' : '不可借',
+                    'created_at' => $device->created_at->format('Y-m-d H:i:s'),
+                    'updated_at' => $device->updated_at->format('Y-m-d H:i:s'),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //4.获取分类下的设备列表
+    public function devicesByCategory(Request $request, $id)
+    {
+        try {
+            $devices = Device::where('category_id', $id)
+                ->with('category')
+                ->paginate($request->limit ?? 10);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $devices
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 5. 获取可借用设备列表
+    public function available(Request $request)
+    {
+        try {
+            $query = Device::where('status', 1)->with('category');
+
+            if ($request->keyword) {
+                $query->where('name', 'like', '%'.$request->keyword.'%')
+                    ->orWhere('model', 'like', '%'.$request->keyword.'%');
+            }
+            if ($request->category_id) {
+                $query->where('category_id', $request->category_id);
+            }
+
+            $data = $query->paginate($request->limit ?? 10);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //6.按状态筛选
+    public function filterByStatus(Request $request)
+    {
+        try {
+            $validated = $request->validate(['status' => 'required']);
+
+            $data = Device::where('status', $validated['status'])
+                ->with('category')
+                ->paginate($request->limit ?? 10);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $data
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $e->errors()['status'][0],
+                'data' => null
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //7.设备状态选项(前端下拉框)
+    public function statusOptions()
+    {
+        try {
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => [
+                    ['code' => 1, 'text' => '可借'],
+                    ['code' => 2, 'text' => '已借出'],
+                    ['code' => 3, 'text' => '维护中'],
+                    ['code' => 0, 'text' => '已下架'],
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //8.检查设备是否可借
+    public function checkAvailable($id)
+    {
+        try {
+            $device = Device::find($id);
+            if (!$device) {
+                return response()->json(['code' => 400, 'message' => '设备不存在'], 400);
+            }
+
+            $available = $device->status == 1 && $device->available_quantity > 0;
+
+            return response()->json([
+                'code' => 200,
+                'message' => '查询成功',
+                'data' => [
+                    'device_id' => $device->id,
+                    'name' => $device->name,
+                    'is_available' => $available,
+                    'available_quantity' => $device->available_quantity,
+                    'tip' => $available ? '可借' : '不可借'
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '查询失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //9.获取热门设备(按借用次数排序)
+    public function hotDevices(Request $request)
+    {
+        try {
+            $devices = Device::orderBy('borrow_count', 'desc')
+                ->limit($request->limit ?? 10)
+                ->get();
+
+            return response()->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => $devices
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '获取失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 添加设备分类
+    public function storeCategory(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+            ]);
+
+            $category = DeviceCategory::create($validated);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '分类添加成功',
+                'data' => $category
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '添加失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // 创建预约
+    public function storeBooking(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'device_id' => 'required|exists:devices,id',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
+                'purpose' => 'nullable|string',
+            ]);
+
+            $user = auth('api')->user();
+
+            $booking = Booking::create([
+                'user_id' => $user->id,
+                'device_id' => $validated['device_id'],
+                'start_date' => $validated['start_date'],
+                'end_date' => $validated['end_date'],
+                'purpose' => $validated['purpose'] ?? null,
+                'status' => 'pending',
+            ]);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '预约成功',
+                'data' => $booking
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '预约失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 }

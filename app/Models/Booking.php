@@ -29,12 +29,12 @@ class Booking extends Model
 
     public function user()
     {
-        return $this->belongTo(User::class,'user_id');
+        return $this->belongsTo(User::class,'user_id');
     }
 
     public function device()
     {
-        return $this->belongTo(Device::class,'device_id');
+        return $this->belongsTo(Device::class,'device_id');
     }
 
     public function admin()
