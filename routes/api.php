@@ -17,9 +17,9 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/user/password', [WjcController::class, 'updatePassword']);
     Route::put('/user/profile', [WjcController::class, 'updateProfile']);
 // 借用申请模块（邹鸿耀负责）
-Route::post('/bookings', [ZhyController::class, 'store']);
-Route::get('/bookings/my', [ZhyController::class, 'myBookings']);
-Route::post('/bookings/{id}/return', [ZhyController::class, 'returnBooking']);
+    Route::post('/bookings', [ZhyController::class, 'store']);
+    Route::get('/bookings/my', [ZhyController::class, 'myBookings']);
+    Route::post('/bookings/{id}/return', [ZhyController::class, 'returnBooking']);
 });
 
 // 管理员接口
@@ -31,3 +31,4 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/admin/devices/{id}', [WjcController::class, 'updateDevice']);
     Route::post('/admin/devices/{id}/status', [WjcController::class, 'updateDeviceStatus']);
 });
+Route::get('/zhy-test', [ZhyController::class, 'store']);

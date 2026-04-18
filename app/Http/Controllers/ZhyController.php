@@ -140,16 +140,17 @@ class ZhyController extends Controller
                 'message' => '当前状态不允许归还',
                 'data'    => null,
             ]);
+
         }
 
         $booking->status = 'returned';
         $booking->returned_at = Carbon::now();
         $booking->save();
 
-        return response()->json([
+       return response()->json([
             'code'    => 200,
             'message' => '归还成功',
-            'data'    => null,
+           'data'    => null,
         ]);
     }
 
