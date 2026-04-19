@@ -41,6 +41,7 @@ Route::middleware(DisableSession::class)->group(function () {
         // 管理员接口
         Route::get('/admin/bookings', [WjcController::class, 'bookingList']);
         Route::post('/admin/bookings/{id}/audit', [WjcController::class, 'auditBooking']);
+        Route::post('/admin/bookings/{id}/return-audit', [WjcController::class, 'auditReturnBooking']);
         Route::post('/admin/devices', [WjcController::class, 'storeDevice']);
         Route::post('/admin/devices/{id}', [WjcController::class, 'updateDevice']);
         Route::post('/admin/devices/{id}/status', [WjcController::class, 'updateDeviceStatus']);

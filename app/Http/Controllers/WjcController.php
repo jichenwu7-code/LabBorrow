@@ -567,6 +567,74 @@ class WjcController
         }
     }
 
+    //审核归还申请
+    public function auditReturnBooking(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'result' => 'required|in:returned,rejected',
+                'reject_reason' => 'nullable|string',
+            ]);
+
+            $booking = Booking::findOrFail($id);
+
+            // 只有待审核归还状态才能审核
+            if ($booking->status !== 'return_pending') {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '当前状态不允许审核归还',
+                    'data' => null
+                ], 400);
+            }
+
+            $updateData = [
+                'status' => $validated['result'],
+                'admin_id' => JWTAuth::user()->id,
+            ];
+
+            // 如果审核通过，记录归还时间
+            if ($validated['result'] === 'returned') {
+                $updateData['returned_at'] = now();
+            } else {
+                // 如果拒绝归还申请，恢复为已通过状态
+                $updateData['status'] = 'approved';
+                $updateData['reject_reason'] = $validated['reject_reason'] ?? null;
+            }
+
+            $booking->update($updateData);
+
+            $message = $validated['result'] === 'returned' ? '归还审核通过' : '归还申请已拒绝';
+
+            return response()->json([
+                'code' => 200,
+                'message' => $message,
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'code' => 404,
+                'message' => '预约记录不存在',
+                'data' => null
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '审核失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
     //设备管理
 
     //新增设备
