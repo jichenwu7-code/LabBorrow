@@ -73,12 +73,7 @@ class WjcController
                 ], 401);
             }
             
-            // 使用JWTAuth::fromUser()生成真实的token
             $token = JWTAuth::fromUser($user);
-            
-            // 记录登录结果
-            \Illuminate\Support\Facades\Log::info('登录结果: 成功');
-            \Illuminate\Support\Facades\Log::info('生成的token: ' . $token);
             
             return response()->json([
                 'code' => 200,
@@ -94,11 +89,6 @@ class WjcController
                 ]
             ]);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('登录失败: ' . $e->getMessage());
-            \Illuminate\Support\Facades\Log::error('错误堆栈: ' . $e->getTraceAsString());
-            
-            // 返回错误响应
             return response()->json([
                 'code' => 500,
                 'message' => '登录失败: ' . $e->getMessage(),
@@ -203,9 +193,6 @@ class WjcController
                 'data' => null
             ]);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('邮件发送失败: ' . $e->getMessage());
-        
             return response()->json([
                 'code' => 500,
                 'message' => '验证码发送失败，请稍后重试',
@@ -372,9 +359,6 @@ class WjcController
                 'data' => null
             ], 400);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('重置密码失败: ' . $e->getMessage());
-            
             return response()->json([
                 'code' => 500,
                 'message' => '重置密码失败: ' . $e->getMessage(),
