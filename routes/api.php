@@ -9,11 +9,6 @@ use App\Http\Middleware\DisableSession;
 // 为所有API路由应用禁用session的中间件
 Route::middleware(DisableSession::class)->group(function () {
 
-    // 测试路由
-    Route::get('/test-api', function () {
-        return response()->json(['message' => 'API test successful']);
-    });
-
     // 登录路由（用于认证中间件重定向）
     Route::get('/login', function () {
         return response()->json([
@@ -29,7 +24,6 @@ Route::middleware(DisableSession::class)->group(function () {
     Route::post('/send-code', [WjcController::class, 'sendCode']);
     Route::post('/verify-code', [WjcController::class, 'verifyCode']);
     Route::post('/reset-password', [WjcController::class, 'resetPassword']);
-    Route::post('/test-reset-password', [WjcController::class, 'testResetPassword']);
 
     // 需要登录的路由
     Route::middleware('auth:api')->group(function () {

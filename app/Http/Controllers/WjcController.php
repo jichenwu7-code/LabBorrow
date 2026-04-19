@@ -14,12 +14,6 @@ use Illuminate\Support\Str;
 
 class WjcController
 {
-    public function __construct()
-    {
-        // 完全禁用session，避免SQLite连接问题
-        config(['session.driver' => 'array']);
-    }
-
     //用户注册
     public function register(Request $request)
     {
@@ -56,26 +50,12 @@ class WjcController
     public function login(Request $request)
     {
         try {
-            // 记录开始登录
-            \Illuminate\Support\Facades\Log::info('开始登录');
-            
-            // 完全禁用session，避免SQLite连接问题
-            config(['session.driver' => 'array']);
-            
-            // 记录session驱动设置
-            \Illuminate\Support\Facades\Log::info('Session驱动设置为: ' . config('session.driver'));
-            
             $validated = $request->validate([
                 'account' => 'required',
                 'password' => 'required',
             ]);
 
-            // 手动验证用户
             $user = User::where('account', $validated['account'])->first();
-            
-            // 记录尝试登录的账号
-            \Illuminate\Support\Facades\Log::info('尝试登录的账号: ' . $validated['account']);
-            \Illuminate\Support\Facades\Log::info('用户是否存在: ' . ($user ? '是' : '否'));
             
             if (!$user) {
                 return response()->json([
@@ -85,9 +65,7 @@ class WjcController
                 ], 401);
             }
             
-            // 直接使用PHP内置的password_verify函数，绕过Laravel的Hash::check
             if (!password_verify($validated['password'], $user->password)) {
-                \Illuminate\Support\Facades\Log::info('密码验证失败');
                 return response()->json([
                     'code' => 401,
                     'message' => '账号或密码错误',
@@ -403,16 +381,6 @@ class WjcController
                 'data' => null
             ], 500);
         }
-    }
-
-    // 测试重置密码路由
-    public function testResetPassword(Request $request)
-    {
-        return response()->json([
-            'code' => 200,
-            'message' => '测试重置密码路由成功',
-            'data' => null
-        ]);
     }
 
     //注销账号
