@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Booking;
@@ -13,7 +12,7 @@ use App\Models\DeviceCategory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class WjcController extends Controller
+class WjcController
 {
     public function __construct()
     {

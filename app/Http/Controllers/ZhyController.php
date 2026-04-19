@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
-class ZhyController extends Controller
+class ZhyController
 {
     /**
      * 提交借用申请
@@ -127,46 +127,31 @@ class ZhyController extends Controller
      */
     public function returnBooking($id)
     {
-        try {
-            $user = Auth::user();
+        $user = Auth::user();
 
-            $booking = Booking::where('user_id', $user->id)
-                ->where('id', $id)
-                ->first();
+        $booking = Booking::where('user_id', $user->id)
+            ->where('id', $id)
+            ->firstOrFail();
 
-            if (!$booking) {
-                return response()->json([
-                    'code'    => 404,
-                    'message' => '预约记录不存在',
-                    'data'    => null,
-                ], 404);
-            }
-
-            // 只有已通过状态才能归还
-            if ($booking->status !== 'approved') {
-                return response()->json([
-                    'code'    => 400,
-                    'message' => '当前状态不允许归还',
-                    'data'    => null,
-                ], 400);
-            }
-
-            $booking->status = 'returned';
-            $booking->returned_at = Carbon::now();
-            $booking->save();
-
+        // 只有已通过状态才能归还
+        if ($booking->status !== 'approved') {
             return response()->json([
-                'code'    => 200,
-                'message' => '归还成功',
+                'code'    => 400,
+                'message' => '当前状态不允许归还',
                 'data'    => null,
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'code'    => 500,
-                'message' => '归还失败: ' . $e->getMessage(),
-                'data'    => null,
-            ], 500);
+
         }
+
+        $booking->status = 'returned';
+        $booking->returned_at = Carbon::now();
+        $booking->save();
+
+       return response()->json([
+            'code'    => 200,
+            'message' => '归还成功',
+           'data'    => null,
+        ]);
     }
 
     /**
