@@ -23,7 +23,7 @@ Route::middleware(DisableSession::class)->group(function () {
         ], 401);
     })->name('login');
 
-    // ==================== 公共路由 ====================
+    // 公共路由
     Route::post('/register', [WjcController::class, 'register']);
     Route::post('/login', [WjcController::class, 'login']);
     Route::post('/send-code', [WjcController::class, 'sendCode']);
@@ -31,7 +31,7 @@ Route::middleware(DisableSession::class)->group(function () {
     Route::post('/reset-password', [WjcController::class, 'resetPassword']);
     Route::post('/test-reset-password', [WjcController::class, 'testResetPassword']);
 
-    // ==================== 需要登录的路由 ====================
+    // 需要登录的路由
     Route::middleware('auth:api')->group(function () {
         // 用户模块
         Route::post('/logout', [WjcController::class, 'logout']);
@@ -39,7 +39,7 @@ Route::middleware(DisableSession::class)->group(function () {
         Route::post('/user/profile', [WjcController::class, 'updateProfile']);
         Route::delete('/user', [WjcController::class, 'deleteUser']);
 
-        // 借用申请模块（邹鸿耀负责 - 使用 ZhyController）
+        // 借用申请模块
         Route::post('/bookings', [ZhyController::class, 'store']);
         Route::get('/bookings/my', [ZhyController::class, 'myBookings']);
         Route::post('/bookings/{id}/return', [ZhyController::class, 'returnBooking']);
@@ -53,7 +53,7 @@ Route::middleware(DisableSession::class)->group(function () {
         Route::post('/admin/categories', [WjcController::class, 'storeCategory']);
     });
 
-    // ==================== 设备接口（龚瑜珠负责） ====================
+    // 设备接口
     Route::get('/devices', [GyzController::class, 'index']);
     Route::get('/categories', [GyzController::class, 'categories']);
     Route::get('/devices/available', [GyzController::class, 'available']);
