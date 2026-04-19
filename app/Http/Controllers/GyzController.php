@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+
 use App\Models\Device;
 use App\Models\DeviceCategory;
 use Illuminate\Http\Request;
 
-class GyzController extends Controller
+class GyzController
 {
 
     // 1. 设备列表

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Booking;
@@ -13,14 +12,8 @@ use App\Models\DeviceCategory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class WjcController extends Controller
+class WjcController
 {
-    public function __construct()
-    {
-        // 完全禁用session，避免SQLite连接问题
-        config(['session.driver' => 'array']);
-    }
-
     //用户注册
     public function register(Request $request)
     {
@@ -57,26 +50,12 @@ class WjcController extends Controller
     public function login(Request $request)
     {
         try {
-            // 记录开始登录
-            \Illuminate\Support\Facades\Log::info('开始登录');
-            
-            // 完全禁用session，避免SQLite连接问题
-            config(['session.driver' => 'array']);
-            
-            // 记录session驱动设置
-            \Illuminate\Support\Facades\Log::info('Session驱动设置为: ' . config('session.driver'));
-            
             $validated = $request->validate([
                 'account' => 'required',
                 'password' => 'required',
             ]);
 
-            // 手动验证用户
             $user = User::where('account', $validated['account'])->first();
-            
-            // 记录尝试登录的账号
-            \Illuminate\Support\Facades\Log::info('尝试登录的账号: ' . $validated['account']);
-            \Illuminate\Support\Facades\Log::info('用户是否存在: ' . ($user ? '是' : '否'));
             
             if (!$user) {
                 return response()->json([
@@ -86,9 +65,7 @@ class WjcController extends Controller
                 ], 401);
             }
             
-            // 直接使用PHP内置的password_verify函数，绕过Laravel的Hash::check
             if (!password_verify($validated['password'], $user->password)) {
-                \Illuminate\Support\Facades\Log::info('密码验证失败');
                 return response()->json([
                     'code' => 401,
                     'message' => '账号或密码错误',
@@ -96,12 +73,7 @@ class WjcController extends Controller
                 ], 401);
             }
             
-            // 使用JWTAuth::fromUser()生成真实的token
             $token = JWTAuth::fromUser($user);
-            
-            // 记录登录结果
-            \Illuminate\Support\Facades\Log::info('登录结果: 成功');
-            \Illuminate\Support\Facades\Log::info('生成的token: ' . $token);
             
             return response()->json([
                 'code' => 200,
@@ -117,11 +89,6 @@ class WjcController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('登录失败: ' . $e->getMessage());
-            \Illuminate\Support\Facades\Log::error('错误堆栈: ' . $e->getTraceAsString());
-            
-            // 返回错误响应
             return response()->json([
                 'code' => 500,
                 'message' => '登录失败: ' . $e->getMessage(),
@@ -226,9 +193,6 @@ class WjcController extends Controller
                 'data' => null
             ]);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('邮件发送失败: ' . $e->getMessage());
-        
             return response()->json([
                 'code' => 500,
                 'message' => '验证码发送失败，请稍后重试',
@@ -395,25 +359,12 @@ class WjcController extends Controller
                 'data' => null
             ], 400);
         } catch (\Exception $e) {
-            // 记录错误日志
-            \Illuminate\Support\Facades\Log::error('重置密码失败: ' . $e->getMessage());
-            
             return response()->json([
                 'code' => 500,
                 'message' => '重置密码失败: ' . $e->getMessage(),
                 'data' => null
             ], 500);
         }
-    }
-
-    // 测试重置密码路由
-    public function testResetPassword(Request $request)
-    {
-        return response()->json([
-            'code' => 200,
-            'message' => '测试重置密码路由成功',
-            'data' => null
-        ]);
     }
 
     //注销账号
@@ -596,6 +547,74 @@ class WjcController extends Controller
             $firstError = reset($errors);
             $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
             
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'code' => 404,
+                'message' => '预约记录不存在',
+                'data' => null
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'code' => 500,
+                'message' => '审核失败: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    //审核归还申请
+    public function auditReturnBooking(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'result' => 'required|in:returned,rejected',
+                'reject_reason' => 'nullable|string',
+            ]);
+
+            $booking = Booking::findOrFail($id);
+
+            // 只有待审核归还状态才能审核
+            if ($booking->status !== 'return_pending') {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '当前状态不允许审核归还',
+                    'data' => null
+                ], 400);
+            }
+
+            $updateData = [
+                'status' => $validated['result'],
+                'admin_id' => JWTAuth::user()->id,
+            ];
+
+            // 如果审核通过，记录归还时间
+            if ($validated['result'] === 'returned') {
+                $updateData['returned_at'] = now();
+            } else {
+                // 如果拒绝归还申请，恢复为已通过状态
+                $updateData['status'] = 'approved';
+                $updateData['reject_reason'] = $validated['reject_reason'] ?? null;
+            }
+
+            $booking->update($updateData);
+
+            $message = $validated['result'] === 'returned' ? '归还审核通过' : '归还申请已拒绝';
+
+            return response()->json([
+                'code' => 200,
+                'message' => $message,
+                'data' => null
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
             return response()->json([
                 'code' => 400,
                 'message' => '验证失败: ' . $errorMessage,

@@ -46,6 +46,7 @@ class Booking extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_APPROVED = 'approved';
     const STATUS_REJECTED = 'rejected';
+    const STATUS_RETURN_PENDING = 'return_pending';
     const STATUS_RETURNED = 'returned';
 
     // 状态文字（来自 main 分支）
@@ -55,6 +56,7 @@ class Booking extends Model
             'pending' => '待审核',
             'approved' => '已通过',
             'rejected' => '已拒绝',
+            'return_pending' => '待审核归还',
             'returned' => '已归还',
             default => '未知'
         };

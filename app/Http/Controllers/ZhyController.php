@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
-class ZhyController extends Controller
+class ZhyController
 {
     /**
      * 提交借用申请
@@ -133,24 +133,22 @@ class ZhyController extends Controller
             ->where('id', $id)
             ->firstOrFail();
 
-        // 只有已通过状态才能归还
+        // 只有已通过状态才能申请归还
         if ($booking->status !== 'approved') {
             return response()->json([
                 'code'    => 400,
                 'message' => '当前状态不允许归还',
                 'data'    => null,
             ]);
-
         }
 
-        $booking->status = 'returned';
-        $booking->returned_at = Carbon::now();
+        $booking->status = 'return_pending';
         $booking->save();
 
-       return response()->json([
+        return response()->json([
             'code'    => 200,
-            'message' => '归还成功',
-           'data'    => null,
+            'message' => '归还申请已提交，等待管理员审核',
+            'data'    => null,
         ]);
     }
 
@@ -160,10 +158,11 @@ class ZhyController extends Controller
     private function getStatusText($status)
     {
         $map = [
-            'pending'  => '待审核',
-            'approved' => '已通过',
-            'rejected' => '已拒绝',
-            'returned' => '已归还',
+            'pending'         => '待审核',
+            'approved'        => '已通过',
+            'rejected'        => '已拒绝',
+            'return_pending'  => '待审核归还',
+            'returned'        => '已归还',
         ];
         return $map[$status] ?? '未知';
     }
