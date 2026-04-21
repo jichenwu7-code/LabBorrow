@@ -34,7 +34,7 @@ class WjcController
             // 调试信息
             \Illuminate\Support\Facades\Log::info('Register verify - Email: ' . $email . ', Key: ' . $emailKey . ', File: ' . md5($emailKey) . '.txt');
 
-            if (!\Illuminate\Support\Facades\File::exists($codeFile)) {
+            if (!\Illuminate\Support\Facades\File::exists($codeFile)) {   
                 // 列出所有验证码文件用于调试
                 $files = \Illuminate\Support\Facades\File::files(storage_path('app/verify_codes'));
                 $fileNames = [];
