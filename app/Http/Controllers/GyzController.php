@@ -39,6 +39,7 @@ class GyzController
                 'category_name' => $item->category?->name,
                 'description' => $item->description,
                 'total_quantity' => $item->total_quantity,
+                'available_quantity' => $item->available_quantity,
                 'status' => $item->status,
                 'status_text' => $item->status == 1 ? '可借' : '不可借',
             ];
@@ -92,6 +93,7 @@ class GyzController
                 'category_name' => $device->category?->name,
                 'description' => $device->description,
                 'total_quantity' => $device->total_quantity,
+                'available_quantity'=> $device->available_quantity,
                 'status' => $device->status,
                 'status_text' => $device->status == 1 ? '可借' : '不可借',
                 'created_at' => $device->created_at->format('Y-m-d H:i:s'),
@@ -136,7 +138,9 @@ class GyzController
     //6.按状态筛选
     public function filterByStatus(Request $request)
     {
-        $request->validate(['status' => 'required']);
+        $request->validate([
+            'status' => 'required|integer|in:0,1,2,3'
+        ]);
 
         $data = Device::where('status', $request->status)
             ->with('category')
