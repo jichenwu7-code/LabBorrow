@@ -21,22 +21,90 @@ class WjcController
             $validated = $request->validate([
                 'account' => 'required|unique:users',
                 'name' => 'required',
+                'email' => 'required|email|unique:users',
                 'password' => 'required|confirmed|min:6|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
+                'code' => 'required|digits:6',
             ]);
 
+            // 验证邮箱验证码
+            $email = $validated['email'];
+            $emailKey = strtolower($email);
+            $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
+
+            // 调试信息
+            \Illuminate\Support\Facades\Log::info('Register verify - Email: ' . $email . ', Key: ' . $emailKey . ', File: ' . md5($emailKey) . '.txt');
+
+            if (!\Illuminate\Support\Facades\File::exists($codeFile)) {   
+                // 列出所有验证码文件用于调试
+                $files = \Illuminate\Support\Facades\File::files(storage_path('app/verify_codes'));
+                $fileNames = [];
+                foreach ($files as $file) {
+                    $fileNames[] = $file->getFilename();
+                }
+                \Illuminate\Support\Facades\Log::info('Available code files: ' . implode(', ', $fileNames));
+
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码不存在，请重新发送',
+                    'data' => ['debug_email_key' => md5($emailKey) . '.txt', 'available_files' => $fileNames]
+                ], 400);
+            }
+
+            $codeData = json_decode(\Illuminate\Support\Facades\File::get($codeFile), true);
+            if (!$codeData || !isset($codeData['code']) || !isset($codeData['expire'])) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码数据无效，请重新发送',
+                    'data' => null
+                ], 400);
+            }
+
+            if ($codeData['expire'] < time()) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期，请重新发送',
+                    'data' => null
+                ], 400);
+            }
+
+            if ($codeData['code'] != $validated['code']) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码错误',
+                    'data' => null
+                ], 400);
+            }
+
+            // 创建用户
             User::create([
                 'account' => $validated['account'],
                 'name' => $validated['name'],
+                'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'role' => 1, //默认学生
                 'status' => 1,
             ]);
+
+            // 删除已使用的验证码
+            \Illuminate\Support\Facades\File::delete($codeFile);
 
             return response()->json([
                 'code' => 200,
                 'message' => '注册成功',
                 'data' => null
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
+            return response()->json([
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
+                'data' => null
+            ], 400);
         } catch (\Exception $e) {
             return response()->json([
                 'code' => 500,
@@ -158,44 +226,73 @@ class WjcController
     //发送验证码
     public function sendCode(Request $request)
     {
-        $validated = $request->validate(['email' => 'required|email']);
-        $email = $validated['email'];
-
-        // 检查用户是否存在
-        $user = User::where('email', $email)->first();
-        if (!$user) {
-            return response()->json(['code' => 400, 'message' => '该邮箱未注册', 'data' => null], 400);
-        }
-
-        // 生成6位验证码
-        $code = str_pad(random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
-
-        // 存储验证码到文件，有效期5分钟
-        $emailKey = strtolower($email);
-        $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
-        $codeData = [
-            'code' => $code,
-            'expire' => time() + 300
-        ];
-        \Illuminate\Support\Facades\File::ensureDirectoryExists(storage_path('app/verify_codes'));
-        \Illuminate\Support\Facades\File::put($codeFile, json_encode($codeData));
-
-        // 发送邮箱验证码
         try {
-            \Illuminate\Support\Facades\Mail::send('emails.verify', ['code' => $code], function ($message) use ($email) {
-                $message->to($email)
-                        ->subject('验证码');
-            }); 
+            $validated = $request->validate([
+                'email' => 'required|email',
+                'type' => 'required|in:register,reset'
+            ]);
+            $email = $validated['email'];
+            $type = $validated['type'];
+
+            // 根据类型检查用户是否存在（仅用于提示，不影响发送验证码）
+            $user = User::where('email', $email)->first();
+            if ($type === 'reset' && !$user) {
+                return response()->json(['code' => 400, 'message' => '该邮箱未注册', 'data' => null], 400);
+            }
+
+            // 生成6位验证码
+            $code = str_pad(random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+
+            // 存储验证码到文件，有效期5分钟
+            $emailKey = strtolower($email);
+            $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
+            $codeData = [
+                'code' => $code,
+                'expire' => time() + 300
+            ];
+
+            // 调试信息
+            \Illuminate\Support\Facades\Log::info('Send code - Email: ' . $email . ', Key: ' . $emailKey . ', File: ' . md5($emailKey) . '.txt');
+
+            \Illuminate\Support\Facades\File::ensureDirectoryExists(storage_path('app/verify_codes'));
+            \Illuminate\Support\Facades\File::put($codeFile, json_encode($codeData));
+
+            // 根据类型设置邮件主题
+            $subject = $type === 'register' ? '注册验证码' : '验证码';
+
+            // 发送邮箱验证码
+            try {
+                \Illuminate\Support\Facades\Mail::send('emails.verify', ['code' => $code], function ($message) use ($email, $subject) {
+                    $message->to($email)
+                            ->subject($subject);
+                });
+
+                return response()->json([
+                    'code' => 200,
+                    'message' => '验证码发送成功',
+                    'data' => null
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'code' => 500,
+                    'message' => '验证码发送失败，请稍后重试',
+                    'data' => null
+                ], 500);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
 
             return response()->json([
-                'code' => 200,
-                'message' => '验证码发送成功',
+                'code' => 400,
+                'message' => '验证失败: ' . $errorMessage,
                 'data' => null
-            ]);
+            ], 400);
         } catch (\Exception $e) {
             return response()->json([
                 'code' => 500,
-                'message' => '验证码发送失败，请稍后重试',
+                'message' => '发送失败: ' . $e->getMessage(),
                 'data' => null
             ], 500);
         }
@@ -204,75 +301,93 @@ class WjcController
     //校验验证码
     public function verifyCode(Request $request)
     {
-        $validated = $request->validate([
-            'email' => 'required|email',
-            'code' => 'required|digits:6',
-        ]);
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email',
+                'code' => 'required|digits:6',
+            ]);
 
-        $email = $validated['email'];
-        $code = $validated['code'];
-        $emailKey = strtolower($email);
+            $email = $validated['email'];
+            $code = $validated['code'];
+            $emailKey = strtolower($email);
 
-        // 读取验证码文件
-        $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
-        if (!\Illuminate\Support\Facades\File::exists($codeFile)) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码已过期',
-                'data' => null
-            ], 400);
-        }
+            // 读取验证码文件
+            $codeFile = storage_path('app/verify_codes/' . md5($emailKey) . '.txt');
+            if (!\Illuminate\Support\Facades\File::exists($codeFile)) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
 
-        // 解析验证码数据
-        $codeData = json_decode(\Illuminate\Support\Facades\File::get($codeFile), true);
-        if (!$codeData || !isset($codeData['code']) || !isset($codeData['expire'])) {
+            // 解析验证码数据
+            $codeData = json_decode(\Illuminate\Support\Facades\File::get($codeFile), true);
+            if (!$codeData || !isset($codeData['code']) || !isset($codeData['expire'])) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查验证码是否过期
+            if ($codeData['expire'] < time()) {
+                \Illuminate\Support\Facades\File::delete($codeFile);
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码已过期',
+                    'data' => null
+                ], 400);
+            }
+
+            // 检查验证码是否正确
+            if ($codeData['code'] != $code) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '验证码错误',
+                    'data' => null
+                ], 400);
+            }
+
+            // 生成验证token，有效期10分钟
+            $verifyToken = Str::random(64);
+            $tokenFile = storage_path('app/verify_tokens/' . $verifyToken . '.txt');
+            $tokenData = [
+                'email' => $email,
+                'expire' => time() + 600
+            ];
+            \Illuminate\Support\Facades\File::ensureDirectoryExists(storage_path('app/verify_tokens'));
+            \Illuminate\Support\Facades\File::put($tokenFile, json_encode($tokenData));
+
+            // 删除已使用的验证码
             \Illuminate\Support\Facades\File::delete($codeFile);
+
+            return response()->json([
+                'code' => 200,
+                'message' => '验证成功',
+                'data' => [
+                    'verify_token' => $verifyToken
+                ]
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = reset($errors);
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+
             return response()->json([
                 'code' => 400,
-                'message' => '验证码已过期',
+                'message' => '验证失败: ' . $errorMessage,
                 'data' => null
             ], 400);
-        }
-
-        // 检查验证码是否过期
-        if ($codeData['expire'] < time()) {
-            \Illuminate\Support\Facades\File::delete($codeFile);
+        } catch (\Exception $e) {
             return response()->json([
-                'code' => 400,
-                'message' => '验证码已过期',
+                'code' => 500,
+                'message' => '验证失败: ' . $e->getMessage(),
                 'data' => null
-            ], 400);
+            ], 500);
         }
-
-        // 检查验证码是否正确
-        if ($codeData['code'] != $code) {
-            return response()->json([
-                'code' => 400,
-                'message' => '验证码错误',
-                'data' => null
-            ], 400);
-        }
-
-        // 生成验证token，有效期10分钟
-        $verifyToken = Str::random(64);
-        $tokenFile = storage_path('app/verify_tokens/' . $verifyToken . '.txt');
-        $tokenData = [
-            'email' => $email,
-            'expire' => time() + 600
-        ];
-        \Illuminate\Support\Facades\File::ensureDirectoryExists(storage_path('app/verify_tokens'));
-        \Illuminate\Support\Facades\File::put($tokenFile, json_encode($tokenData));
-
-        // 删除已使用的验证码
-        \Illuminate\Support\Facades\File::delete($codeFile);
-
-        return response()->json([
-            'code' => 200,
-            'message' => '验证成功',
-            'data' => [
-                'verify_token' => $verifyToken
-            ]
-        ]);
     }
 
     //用户重置密码
