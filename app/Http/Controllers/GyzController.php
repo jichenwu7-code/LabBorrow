@@ -138,7 +138,9 @@ class GyzController
     //6.按状态筛选
     public function filterByStatus(Request $request)
     {
-        $request->validate(['status' => 'required']);
+        $request->validate([
+            'status' => 'required|integer|in:0,1,2,3'
+        ]);
 
         $data = Device::where('status', $request->status)
             ->with('category')
