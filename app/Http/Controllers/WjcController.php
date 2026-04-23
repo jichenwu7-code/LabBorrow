@@ -805,6 +805,21 @@ class WjcController
             ]);
 
             $device = Device::findOrFail($id);
+
+            // 计算当前已借出数量
+            $borrowedCount = \App\Models\Booking::where('device_id', $id)
+                ->whereIn('status', ['approved', 'return_pending'])
+                ->count();
+
+            // 验证总数量不能小于已借出数量
+            if ($validated['total_quantity'] < $borrowedCount) {
+                return response()->json([
+                    'code' => 400,
+                    'message' => '编辑失败：总数量不能小于当前已借出数量（' . $borrowedCount . '）',
+                    'data' => null
+                ], 400);
+            }
+
             $device->update($validated);
 
             return response()->json([
@@ -902,6 +917,14 @@ class WjcController
             $devices = $query->paginate($limit, ['*'], 'page', $page);
 
             $items = $devices->map(function ($item) {
+                // 计算已借出数量（状态为 approved 或 return_pending 的借用记录）
+                $borrowedCount = \App\Models\Booking::where('device_id', $item->id)
+                    ->whereIn('status', ['approved', 'return_pending'])
+                    ->count();
+
+                // 计算可借用数量
+                $availableQuantity = max(0, $item->total_quantity - $borrowedCount);
+
                 return [
                     'id' => $item->id,
                     'name' => $item->name,
@@ -910,6 +933,7 @@ class WjcController
                     'category_name' => $item->category?->name,
                     'description' => $item->description,
                     'total_quantity' => $item->total_quantity,
+                    'available_quantity' => $availableQuantity,
                     'status' => $item->status,
                     'status_text' => $item->status == 1 ? '可借' : '不可借',
                 ];
