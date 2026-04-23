@@ -275,7 +275,7 @@ class WjcController
             } catch (\Exception $e) {
                 return response()->json([
                     'code' => 500,
-                    'message' => '验证码发送失败，请稍后重试',
+                    'message' => '验证码发送失败: ' . $e->getMessage(),
                     'data' => null
                 ], 500);
             }
