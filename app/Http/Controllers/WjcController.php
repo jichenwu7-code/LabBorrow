@@ -593,9 +593,15 @@ class WjcController
     public function bookingList(Request $request)
     {
         try {
-            $bookings = Booking::with(['user', 'device'])
-                ->orderBy('id', 'desc')
-                ->paginate($request->per_page ?? 10);
+            $query = Booking::with(['user', 'device'])
+                ->orderBy('id', 'desc');
+
+            // 按状态筛选
+            if ($request->has('status') && $request->status !== '' && $request->status !== null) {
+                $query->where('status', $request->status);
+            }
+
+            $bookings = $query->paginate($request->per_page ?? 10);
 
             $items = $bookings->map(function ($item) {
                 return [
