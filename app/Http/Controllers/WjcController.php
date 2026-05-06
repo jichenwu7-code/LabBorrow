@@ -901,7 +901,7 @@ class WjcController
         }
     }
 
-    // 1. 设备列表
+    //设备列表
     public function index(Request $request)
     {
         try {
@@ -964,7 +964,7 @@ class WjcController
         }
     }
 
-    // 2. 设备分类列表
+    //设备分类列表
     public function categories()
     {
         try {
@@ -984,7 +984,7 @@ class WjcController
         }
     }
 
-    // 3. 单台设备详情
+    //单台设备详情
     public function show($id)
     {
         try {
@@ -1024,7 +1024,7 @@ class WjcController
         }
     }
 
-    //4.获取分类下的设备列表
+    //获取分类下的设备列表
     public function devicesByCategory(Request $request, $id)
     {
         try {
@@ -1046,7 +1046,7 @@ class WjcController
         }
     }
 
-    // 5. 获取可借用设备列表
+    //获取可借用设备列表
     public function available(Request $request)
     {
         try {
@@ -1076,7 +1076,7 @@ class WjcController
         }
     }
 
-    //6.按状态筛选
+    //按状态筛选
     public function filterByStatus(Request $request)
     {
         try {
@@ -1106,7 +1106,7 @@ class WjcController
         }
     }
 
-    //7.设备状态选项(前端下拉框)
+    //设备状态选项(前端下拉框)
     public function statusOptions()
     {
         try {
@@ -1129,7 +1129,7 @@ class WjcController
         }
     }
 
-    //8.检查设备是否可借
+    //检查设备是否可借
     public function checkAvailable($id)
     {
         try {
@@ -1160,7 +1160,7 @@ class WjcController
         }
     }
 
-    //9.获取热门设备(按借用次数排序)
+    //获取热门设备(按借用次数排序)
     public function hotDevices(Request $request)
     {
         try {
@@ -1182,7 +1182,7 @@ class WjcController
         }
     }
 
-    // 添加设备分类
+    //添加设备分类
     public function storeCategory(Request $request)
     {
         try {
@@ -1217,7 +1217,7 @@ class WjcController
         }
     }
 
-    // 创建预约
+    //创建预约
     public function storeBooking(Request $request)
     {
         try {
